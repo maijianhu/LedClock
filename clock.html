@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="zh-Hans-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Led Clock</title>
+    <script src="jquery.min.js"></script>
+    <script src="jquery-ui.min.js"></script>
+</head>
+<body>
+
+<script>
+
+    // 是否可拖动
+    var dragable = true;
+
+    // html渲染接口
+    var display = function(containerId, html) {
+        var id = 'display-' + containerId;
+        var $container = $('#'+id);
+        if ($container.length == 0) {
+            $('body').append('<span id="'+id+'"></span>');
+            $container = $('#'+id);
+            if (dragable)
+                $container.draggable();
+        }
+        $container.html(html);
+    }
+
+    // 字模设计模式
+    var setMatrixMode = function() {
+        $(document).on('click', '.led-display-led-box', function(){
+            var $box = $(this);
+            var x = $box.data('positionX');
+            var y = $box.data('positionY');
+            var status = ledDisplay.getLedStatus(x, y);
+            ledDisplay.setLedStatus(x, y, !status);
+            console.log(ledDisplay.display().showMatrix());
+        });
+    }
+    setMatrixMode();
+
+
+
+
+
+    // LED二级发光管
+    var Led = function(){
+        // 尺寸
+        var size = '10px';
+
+        // 材质色
+        var color = '#000';
+
+        // 可见光色
+        var highlightColor = '#f00';
+
+        // 初始状态
+        var status = false;
+
+        // 设置led灯管尺寸
+        this.setSize = function (newSize) {
+            size = newSize;
+            return this;
+        }
+        
+        // 设置led灯管材质颜色
+        this.setColor = function(newColor) {
+            color = newColor;
+            return this;
+        }
+
+        // 设置led灯管可见光色
+        this.setHighlightColor = function(newColor) {
+            highlightColor = newColor;
+            return this;
+        }
+
+        // 获取led灯管材质颜色
+        this.getColor = function() {
+            return color;
+        }
+
+        // 获取led灯管可见光色
+        this.getHighlightColor = function() {
+            return highlightColor;
+        }
+
+        // 获取尺寸
+        this.getSize = function() {
+            var s = parseInt(size);
+            return [s, s];
+        }
+
+        // 通电
+        this.turnOn = function() {
+            status = true;
+            return this;
+        }
+
+        // 关闭
+        this.turnOff = function() {
+            status = false
+            return this;
+        }
+
+        // 获取当前状态
+        this.getStatus = function() {
+            return status;
+        }
+
+        // 渲染显示
+        this.render = function() {
+            var style = 'display: inline-block; width: ' + size + '; height: ' + size + '; background-color: ' + (status ? highlightColor : color);
+            return '<span class="led" style="'+style+'"></span>';
+        }
+
+        // 显示
+        var id = 'led-' + (new Date()).getTime();
+        this.display = function() {
+            display(id, this.render());
+            return this;
+        }
+    }
+
+    // LED显示屏幕
+    var LedDisplay = function(led){
+        if (!led || led.constructor !== Led) {
+            throw new Error('请导入LED模型');
+        }
+
+        // 定义二极管模型
+        var ledModel = led;
+
+        // 返回led模型
+        this.getLedModel = function() {
+            return ledModel;
+        }
+
+        // 显示屏结构，5列7行
+        var structure = [5, 7];
+
+        // led灯槽间隙
+        var gutter = parseInt(ledModel.getSize()[0] / 10);
+
+        // 根据模型生产led灯
+        var produceLed = function() {
+            var newLed = new ledModel.constructor;
+            newLed.setSize(ledModel.getSize()[0] + 'px');
+            newLed.setColor(ledModel.getColor());
+            newLed.setHighlightColor(ledModel.getHighlightColor());
+            return newLed;
+        }
+
+
+        // 定义一个led镶嵌面板，根据屏幕结构嵌入led灯
+        var panel = [];
+        var setPanel = function() {
+            panel = [];
+            for (var i = 0; i < structure[1]; i++) {
+                panel[i] = [];
+                for (var j = 0; j < structure[0]; j++) {
+                    panel[i].push(produceLed());
+                }
+            }
+        }
+        setPanel();
+
+        // 获取宽度和高度
+        this.getSize = function() {
+            var size = {
+                width: ledModel.getSize()[0] * structure[0] + gutter * 2 * structure[0],
+                height: ledModel.getSize()[1] * structure[1] + gutter * 2 * structure[1]
+            };
+            return size;
+        }
+
+        // 字模1,2,3,4,5,6,7,8,9,0,a,p,:
+        var matrix = {
+            '1': [
+                [0,0,1,0,0],
+                [0,1,1,0,0],
+                [0,0,1,0,0],
+                [0,0,1,0,0],
+                [0,0,1,0,0],
+                [0,1,1,1,0],
+                [0,0,0,0,0]
+            ],
+            '2': [[0,1,1,1,0],[1,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,1,1,1,1],[0,0,0,0,0]],
+            '3': [[1,1,1,1,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,1,0],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+            '4': [[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],
+            '5': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+            '6': [[0,1,1,1,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+            '7': [[1,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],
+            '8': [[0,1,1,1,0],[1,0,0,0,1],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+            '9': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+            '0': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,1,1],[1,0,1,0,1],[1,1,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+            'A': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[0,0,0,0,0]],
+            'P': [[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0]],
+            ':': [[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0]]
+        };
+
+        // 清屏
+        this.clear = function() {
+            for (var i = 0; i < structure[1]; i++) {
+                for (var j = 0; j < structure[0]; j++) {
+                    var led = panel[i][j];
+                    led.turnOff();
+                }
+            }
+        }
+
+        // 根据字模设置led等状态
+        var setLedStatusByMatrix = function(matrix) {
+            for (var i = 0; i < matrix.length; i++) {
+                for (var j = 0; j < matrix[i].length; j++) {
+                    var led = panel[i][j];
+                    matrix[i][j] == 1 ? led.turnOn() : led.turnOff();
+                }
+            }
+        }
+
+        // 渲染显示
+        this.render = function(char) {
+            if (typeof matrix[char] != 'undefined') {
+                setLedStatusByMatrix(matrix[char]);
+            }
+
+            var size = this.getSize();
+            var lds = 'width: ' + size.width + 'px';
+            var html = '<div class="led-display" style="'+lds+'">';
+            for (var i = 0; i < panel.length; i++) {
+                html += '<div class="led-display-row" style="font-size: 0;">';
+                for (var j = 0; j < panel[i].length; j++) {
+                    var led = panel[i][j];
+                    html += '<span class="led-display-led-box" style="cursor: pointer; padding: '+gutter+'px;display: inline-block;" data-position-x="'+i+'" data-position-y="'+j+'">' + led.render() + '</span>';
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        // 显示字符
+        var id = 'led-display-' + (new Date()).getTime();
+        this.display = function(char) {
+            display(id, this.render(char));
+            return this;
+        }
+
+        // 设置led灯状态
+        this.setLedStatus = function(x, y, status) {
+            var led = panel[x][y];
+            status ? led.turnOn() : led.turnOff();
+            return led;
+        }
+
+        // 获取led灯状态
+        this.getLedStatus = function(x, y) {
+            var led = panel[x][y];
+            return led.getStatus();
+        }
+
+        // 获取字模
+        this.getMatrix = function() {
+            return matrix;
+        }
+
+
+        // 显示字模
+        this.showMatrix = function() {
+            var matrix = [];
+            for (var i = 0; i < panel.length; i++) {
+                matrix[i] = [];
+                for (var j = 0; j < panel[i].length; j++) {
+                    var led = panel[i][j];
+                    matrix[i][j] = led.getStatus() ? 1 : 0;
+                }
+            }
+            return JSON.stringify(matrix);
+        }
+
+
+        // 设置新字模
+        this.setMatrix = function(newMatrix) {
+            matrix = newMatrix;
+            console.log(matrix);
+            return this;
+        }
+    };
+
+//    var led = new Led();
+//    led.setHighlightColor('green');
+//    var ledDisplay = new LedDisplay(led);
+//    ledDisplay.display(':');
+
+    // LED时钟
+    var LedClock = function(ledDisplay) {
+
+        if (!ledDisplay || ledDisplay.constructor !== LedDisplay) {
+            throw new Error('请导入LED显示屏模型');
+        }
+
+        var ledDisplayModel = ledDisplay;
+
+        // 返回led模型
+        this.getLedDisplayModel = function() {
+            return ledDisplayModel;
+        }
+
+        // 内补边距
+        var padding = ['1px', '10px', '1px', '10px'];
+
+        // 材质颜色
+        var color = '#053145';
+
+        // 边框色，金属深灰
+        var borderColor = '#910000';
+
+        // 边框宽度
+        var borderSize = '10px';
+
+        // 生产Led显示器面板
+        var produceLedDisplay = function() {
+            var led = ledDisplayModel.getLedModel();
+            var ledDisplay = new ledDisplayModel.constructor(led);
+            ledDisplay.setMatrix(ledDisplayModel.getMatrix());
+            return ledDisplay;
+        }
+
+        // Led面板，存放9块Led显示屏
+        var displayPanel = [];
+
+        // 面板槽间隙
+        var displayPanelGutter = '2px';
+
+        // 生产led显示屏并装载到面板中
+        var ledPanelNumber = 9;
+        var setdisplayPanel = function() {
+            for (var i = 0; i < ledPanelNumber; i++) {
+                var ledDisplay = produceLedDisplay();
+                displayPanel.push(ledDisplay);
+            }
+            var size = ledDisplayModel.getSize();
+        }
+        setdisplayPanel();
+
+        // 显示板渲染
+        var displayPanelRender = function() {
+            var chars = getTimeChars();
+            var html = '';
+            html += '<div class="led-display-panel">';
+            for (var i = 0; i < ledPanelNumber; i++) {
+                var ledDisplay = displayPanel[i];
+                var char = chars[i];
+                ledDisplay.clear();
+                html+= '<div class="led-display-box" style="display: inline-block; padding: '+ displayPanelGutter +'; ">' + ledDisplay.render(char) + '</div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+
+        // 设置材质颜色
+        this.setColor = function(newColor) {
+            color = newColor;
+            return this;
+        }
+
+        // 设置边框颜色
+        this.setBorderColor = function(newColor) {
+            borderColor = newColor;
+            return this;
+        }
+
+        // 设置边框宽度
+        this.setBorderSize = function(newSize) {
+            borderSize = newSize;
+            return this;
+        }
+
+        // 设置内部边距
+        this.setPadding = function(newPadding) {
+            padding = newPadding;
+            return this;
+        }
+
+        // 获取时间
+        var getTimeChars = function() {
+            var chars = ['', '', '', '', '', '', ''];
+            if (!status) {
+                return chars;
+            }
+            var date = new Date();
+            var hours = date.getHours();
+            var minutes = date.getMinutes();
+            var seconds = date.getSeconds();
+            var noon = hours >= 12 ? 'P' : 'A';
+
+            var hoursStr = hours < 10 ? '0' + hours : hours.toString();
+            var minutesStr = minutes < 10 ? '0' + minutes : minutes.toString();
+            var secondsStr = seconds < 10 ? '0' + seconds : seconds.toString();
+
+            // P 1 6 : 4 9 : 0 1
+            chars[0] = noon;
+            chars[1] = hoursStr.substr(0, 1);
+            chars[2] = hoursStr.substr(1, 1);
+            chars[3] = seconds % 2 == 0 ? '' : ':';
+//            chars[3] = ':';
+            chars[4] = minutesStr.substr(0, 1);
+            chars[5] = minutesStr.substr(1, 1);
+            chars[6] = seconds % 2 == 0 ? '' : ':';
+            chars[7] = secondsStr.substr(0, 1);
+            chars[8] = secondsStr.substr(1, 1);
+            return chars;
+        }
+
+        // 始终状态
+        var status = false;
+
+        // 打开
+        this.turnOn = function(){
+            status = true;
+            return this;
+        }
+
+        // 关闭
+        this.turnOff = function(){
+            status = false;
+            return this;
+        }
+
+        // 渲染
+        this.render = function(){
+            var style = 'display: inline-block; background: ' + color + '; border: ' + borderSize + ' ridge ' + borderColor + '; padding: '+padding[0]+' '+padding[1]+' '+padding[2]+' '+padding[3];
+            html = '<div class="led-clock" style="'+style+'">';
+            html += displayPanelRender();
+            html += '</div>';
+            return html;
+        }
+
+        // 显示
+        var id = 'led-clock-' + (new Date()).getTime();
+        this.display = function() {
+            display(id, this.render());
+        }
+
+        // 运行始终
+        var timer;
+        var ledClock = this;
+        this.run = function() {
+            ledClock.display();
+            timer = setInterval(function(){
+                ledClock.display();
+            }, 1000);
+        }
+    }
+
+
+
+//    var led = new Led();
+//    led.setSize('20px');
+    // led.display();
+    // led.setColor('#333');
+    // led.setHighlightColor('#eee');
+    // var ledForGirl = new Led();
+    // ledForGirl.setColor('#46400D');
+    // ledForGirl.setHighlightColor('pink');
+
+//    var ledDisplay = new LedDisplay(led);
+
+//    // 字模1,2,3,4,5,6,7,8,9,0,a,p,:
+//    var matrix = {
+//        '1': [[0,0,1,0,0],[0,1,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],
+//        '2': [[0,0,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],
+//        '3': [[1,1,1,1,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,1,0],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+//        '4': [[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],
+//        '5': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+//        '6': [[0,1,1,1,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+//        '7': [[1,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],
+//        '8': [[0,1,1,1,0],[1,0,0,0,1],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+//        '9': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],
+//        '0': [[0,1,1,1,0],[0,1,1,1,0],[1,1,0,1,1],[1,1,0,1,1],[1,1,0,1,1],[0,1,1,1,0],[0,1,1,1,0]],
+//        'A': [[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,1,1,1],[1,0,0,0,1],[0,1,1,1,1]],
+//        'P': [[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0]],
+//        ':': [[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0]]
+//    };
+//    ledDisplay.setMatrix(matrix);
+//    ledDisplay.display('3');
+//
+//    var ledClock = new LedClock(ledDisplay);
+//    ledClock.turnOn().run();
+
+
+
+//    var led = new Led();
+//    var ledDisplay = new LedDisplay(led);
+//    var ledClock = new LedClock(ledDisplay);
+//    ledClock.turnOn().run();
+    var matrix = {
+        '1': [[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],
+        '2': [[0,0,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],
+        '3': [[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,1,1,1,0],[0,0,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],
+        '4': [[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],
+        '5': [[0,0,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],
+        '6': [[0,1,0,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,0,0,0],[0,1,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],
+        '7': [[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],
+        '8': [[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[1,0,0,0,1],[0,0,0,0,0],[0,0,0,0,0]],
+        '9': [[1,1,1,1,1],[1,1,0,1,1],[1,1,0,1,1],[1,1,1,1,1],[0,0,0,1,1],[1,0,0,1,1],[1,1,1,1,1]],
+        '0': [[0,0,0,0,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],
+        'A': [[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,1,1,1],[1,0,0,0,1],[0,1,1,1,1]],
+        'P': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,0]],
+        ':': [[0,0,0,0,0],[1,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,1],[0,0,0,0,0]]
+    };
+
+
+    //  girl
+    var ledForGirl = new Led();
+    ledForGirl.setSize('8px');
+    ledForGirl.setColor('#3B382E');
+    ledForGirl.setHighlightColor('pink');
+
+    var ledDisplayForGirl = new LedDisplay(ledForGirl);
+    ledDisplayForGirl.setMatrix(matrix);
+
+    var ledClockForGirl = new LedClock(ledDisplayForGirl);
+    ledClockForGirl.setColor('#000');
+    ledClockForGirl.setBorderColor('gold');
+    ledClockForGirl.setBorderSize('20px');
+    ledClockForGirl.turnOn().run();
+
+    // boy
+    var ledForBoy = new Led();
+    ledForBoy.setSize('15px');
+    ledForBoy.setColor('#000');
+    ledForBoy.setHighlightColor('#fff');
+
+    var ledDisplayForBoy = new LedDisplay(ledForBoy);
+    ledDisplayForBoy.setMatrix(matrix);
+
+    var ledClockForBoy = new LedClock(ledDisplayForBoy);
+    ledClockForBoy.setColor('#000');
+    ledClockForBoy.setBorderColor('grey');
+    ledClockForBoy.setBorderSize('20px');
+    ledClockForBoy.turnOn().run();
+</script>
+</body>
+</html>
